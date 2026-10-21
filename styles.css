@@ -1,0 +1,93 @@
+/* Configuración de página A4 vertical */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+/* Dimensiones físicas exactas A4 (pantalla, vista previa, impresión y PDF) */
+.sheet-a4 {
+  width: 210mm;
+  height: 297mm;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  color: #000000;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Las 5 fichas por columna se reparten en partes iguales el alto disponible de la hoja */
+.onpe-card-row {
+  flex: 1 1 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* Altura calibrada para que 10 filas llenen la hoja A4 en Primaria */
+.row-primaria {
+  height: 23mm;
+}
+
+/* Estilos de impresión estrictos */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  /* Conservar fondos negros (cabecera de tabla, etiquetas) al imprimir */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  main,
+  #secundaria-sheets-container,
+  #primaria-sheets-container {
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+  }
+  .sheet-a4:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+  .no-print,
+  .btn-delete,
+  .col-action,
+  th.col-action,
+  td.col-action {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+  }
+  .sheet-a4 {
+    width: 210mm !important;
+    height: 296mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+  }
+}
+
+/* Estilos dentro del modal de vista previa */
+#modal-preview-content .no-print,
+#modal-preview-content .btn-delete,
+#modal-preview-content .col-action {
+  display: none !important;
+  visibility: hidden !important;
+  width: 0 !important;
+  height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}

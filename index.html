@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Padrón Electoral - I.E. Cuyuchugo</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JsBarcode para códigos de barras Code128 -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
+  <!-- html2canvas + jsPDF para exportar a PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Estilos propios -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- BARRA DE NAVEGACIÓN SUPERIOR (NO IMPRIMIBLE) -->
+  <header class="no-print bg-indigo-950 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-amber-400 text-slate-950 p-2 rounded-lg font-black text-sm tracking-wider flex items-center gap-1 shadow">
+          <i data-lucide="vote" class="w-5 h-5"></i>
+          <span>ONPE ESCOLAR</span>
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-bold leading-tight">I.E. José de la Torre Ugarte - Cuyuchugo</h1>
+          <p class="text-xs text-indigo-200">Sistema Generador de Padrones de Sufragio para Municipio Escolar</p>
+        </div>
+      </div>
+
+      <!-- Pestañas para alternar entre niveles -->
+      <div class="flex items-center bg-indigo-900/80 p-1 rounded-xl border border-indigo-700/60">
+        <button id="tab-btn-secundaria" onclick="switchLevel('secundaria')" 
+                class="tab-btn active px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg flex items-center gap-1.5 transition bg-white text-indigo-950 shadow">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i> Secundaria (Formato ONPE)
+        </button>
+        <button id="tab-btn-primaria" onclick="switchLevel('primaria')" 
+                class="tab-btn px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg flex items-center gap-1.5 transition text-indigo-200 hover:text-white">
+          <i data-lucide="table" class="w-4 h-4"></i> Primaria (Formato Tabular)
+        </button>
+      </div>
+
+      <!-- Botones de Acción Global -->
+      <div class="flex items-center gap-2">
+        <button onclick="openModalPreview()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
+          <i data-lucide="eye" class="w-4 h-4"></i> Vista Previa A4 / PDF
+        </button>
+        <button onclick="downloadPDF(this)" class="btn-pdf bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white font-bold px-3.5 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
+          <i data-lucide="file-down" class="w-4 h-4"></i> <span class="btn-label">Descargar PDF</span>
+        </button>
+        <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
+          <i data-lucide="printer" class="w-4 h-4"></i> Imprimir
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col items-center">
+
+    <!-- ======================================================== -->
+    <!-- VISTA SECUNDARIA (FORMATO TIPO ONPE - 10 POR HOJA A4)    -->
+    <!-- ======================================================== -->
+    <div id="view-secundaria" class="w-full flex flex-col items-center">
+      
+      <!-- Panel de Controles Secundaria (no-print) -->
+      <div class="no-print bg-white p-4 rounded-xl shadow-md border border-slate-200 mb-6 w-full max-w-5xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="settings" class="w-4 h-4 text-indigo-600"></i>
+              Configuración y Carga de Insignias - Secundaria
+            </h2>
+            <p class="text-xs text-slate-500">10 electores por hoja A4 (2 columnas de 5 fichas). Códigos de barras generados automáticamente.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Subir Escudo Colegio -->
+            <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+              <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-600"></i> Subir Escudo I.E.
+              <input type="file" accept="image/*" class="hidden" onchange="handleLogoUpload(event, 'logo-sec-school')">
+            </label>
+            <!-- Subir Logo ONPE -->
+            <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+              <i data-lucide="image-plus" class="w-3.5 h-3.5 text-emerald-600"></i> Subir Logo ONPE
+              <input type="file" accept="image/*" class="hidden" onchange="handleLogoUpload(event, 'logo-sec-onpe')">
+            </label>
+            <!-- Cargar 90 alumnos de prueba -->
+            <button onclick="loadSample90Secundaria()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 flex items-center gap-1.5 transition">
+              <i data-lucide="users" class="w-3.5 h-3.5"></i> Cargar 90 de Prueba
+            </button>
+            <!-- Vaciar lista para empezar desde cero -->
+            <button onclick="clearSecundaria()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5 transition">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Vaciar Lista
+            </button>
+          </div>
+        </div>
+
+        <!-- Datos editables de la mesa (Secundaria) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 border-b border-slate-100 pb-3 mb-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Mesa de Sufragio N°</label>
+            <input type="text" data-field="secMesa" oninput="updateMesaConfig(this)" placeholder="Ej. 000001"
+                   class="mesa-input w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase font-mono focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Departamento</label>
+            <input type="text" data-field="departamento" oninput="updateMesaConfig(this)" placeholder="Ej. LA LIBERTAD"
+                   class="mesa-input w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Provincia</label>
+            <input type="text" data-field="provincia" oninput="updateMesaConfig(this)" placeholder="Ej. OTUZCO"
+                   class="mesa-input w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Distrito / Caserío</label>
+            <input type="text" data-field="distrito" oninput="updateMesaConfig(this)" placeholder="Ej. USQUIL - CUYUCHUGO"
+                   class="mesa-input w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-indigo-500">
+          </div>
+        </div>
+
+        <!-- Formulario para agregar estudiante de Secundaria -->
+        <form onsubmit="addStudentSecundaria(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+          <div class="sm:col-span-4">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Apellidos Completos</label>
+            <input type="text" id="sec-apellidos" required placeholder="Ej. CHÁVEZ RODRÍGUEZ" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="sm:col-span-3">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Nombres Completos</label>
+            <input type="text" id="sec-nombres" required placeholder="Ej. MARCO ANTONIO" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">DNI (8 dígitos)</label>
+            <input type="text" id="sec-dni" required maxlength="8" pattern="[0-9]{8}" placeholder="45678912" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Foto Carné</label>
+            <input type="file" id="sec-foto" accept="image/*" class="w-full text-[10px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-slate-200">
+          </div>
+          <div class="sm:col-span-1">
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow flex items-center justify-center gap-1 transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Contenedor de Hojas A4 para Secundaria -->
+      <div id="secundaria-sheets-container" class="flex flex-col gap-8 items-center w-full">
+        <!-- Renderizado dinámico vía JavaScript -->
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VISTA PRIMARIA (FORMATO TABULAR - 10 POR HOJA A4)        -->
+    <!-- ======================================================== -->
+    <div id="view-primaria" class="w-full hidden flex flex-col items-center">
+      
+      <!-- Panel de Controles Primaria (no-print) -->
+      <div class="no-print bg-white p-4 rounded-xl shadow-md border border-slate-200 mb-6 w-full max-w-5xl">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 mb-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="settings" class="w-4 h-4 text-emerald-600"></i>
+              Configuración y Carga de Insignias - Primaria
+            </h2>
+            <p class="text-xs text-slate-500">10 filas de altura completa (~21.5mm) por hoja A4 para firmas y huellas cómodas.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Subir Escudo Colegio -->
+            <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+              <i data-lucide="image" class="w-3.5 h-3.5 text-indigo-600"></i> Subir Escudo I.E.
+              <input type="file" accept="image/*" class="hidden" onchange="handleLogoUpload(event, 'logo-pri-school')">
+            </label>
+            <!-- Subir Logo ONPE -->
+            <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+              <i data-lucide="image-plus" class="w-3.5 h-3.5 text-emerald-600"></i> Subir Logo ONPE
+              <input type="file" accept="image/*" class="hidden" onchange="handleLogoUpload(event, 'logo-pri-onpe')">
+            </label>
+            <!-- Cargar 90 alumnos de prueba -->
+            <button onclick="loadSample90Primaria()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 flex items-center gap-1.5 transition">
+              <i data-lucide="users" class="w-3.5 h-3.5"></i> Cargar 90 de Prueba
+            </button>
+            <!-- Vaciar lista para empezar desde cero -->
+            <button onclick="clearPrimaria()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5 transition">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Vaciar Lista
+            </button>
+          </div>
+        </div>
+
+        <!-- Datos editables de la mesa (Primaria) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 border-b border-slate-100 pb-3 mb-3">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Mesa de Sufragio N°</label>
+            <input type="text" data-field="priMesa" oninput="updateMesaConfig(this)" placeholder="Ej. 01"
+                   class="mesa-input w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase font-mono focus:ring-1 focus:ring-emerald-500">
+          </div>
+        </div>
+
+        <!-- Formulario para agregar estudiante de Primaria -->
+        <form onsubmit="addStudentPrimaria(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+          <div class="sm:col-span-4">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Apellidos Completos</label>
+            <input type="text" id="pri-apellidos" required placeholder="Ej. CASTILLO MENDOZA" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-emerald-500">
+          </div>
+          <div class="sm:col-span-3">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Nombres Completos</label>
+            <input type="text" id="pri-nombres" required placeholder="Ej. CARLOS ANDRÉS" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-emerald-500">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">DNI (8 dígitos)</label>
+            <input type="text" id="pri-dni" required maxlength="8" pattern="[0-9]{8}" placeholder="78945612" 
+                   class="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono focus:ring-1 focus:ring-emerald-500">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-[11px] font-bold text-slate-600 mb-1">Grado</label>
+            <select id="pri-grado" class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500 font-medium">
+              <option value="1° Primaria">1° Primaria</option>
+              <option value="2° Primaria">2° Primaria</option>
+              <option value="3° Primaria">3° Primaria</option>
+              <option value="4° Primaria">4° Primaria</option>
+              <option value="5° Primaria">5° Primaria</option>
+              <option value="6° Primaria">6° Primaria</option>
+            </select>
+          </div>
+          <div class="sm:col-span-1">
+            <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs shadow flex items-center justify-center gap-1 transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Contenedor de Hojas A4 para Primaria -->
+      <div id="primaria-sheets-container" class="flex flex-col gap-8 items-center w-full">
+        <!-- Renderizado dinámico vía JavaScript -->
+      </div>
+    </div>
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODAL DE VISTA PREVIA LIMPIA (A4 / PDF)                  -->
+  <!-- ======================================================== -->
+  <div id="modal-preview" class="fixed inset-0 bg-slate-900/80 z-50 hidden flex flex-col items-center justify-center p-2 sm:p-4 no-print backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-2xl max-w-5xl w-full flex flex-col max-h-[96vh] overflow-hidden">
+      <!-- Barra superior del modal -->
+      <div class="bg-indigo-950 text-white px-5 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="file-check" class="w-5 h-5 text-amber-400"></i>
+          <div>
+            <h3 class="font-bold text-sm">Vista Previa Oficial A4 / Modo Impresión & PDF</h3>
+            <p class="text-[11px] text-indigo-200">Visualización idéntica al documento impreso (sin papeleras ni botones de interfaz).</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-xs font-semibold text-indigo-200">Hoja a visualizar:</label>
+          <select id="modal-page-select" onchange="updateModalPagePreview()" 
+                  class="bg-indigo-900 border border-indigo-700 text-white text-xs font-bold rounded px-2.5 py-1.5 focus:outline-none">
+          </select>
+          <button onclick="downloadPDF(this)" class="btn-pdf bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow ml-2">
+            <i data-lucide="file-down" class="w-3.5 h-3.5"></i> <span class="btn-label">Descargar PDF</span>
+          </button>
+          <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow ml-2">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir Ahora
+          </button>
+          <button onclick="closeModalPreview()" class="text-slate-300 hover:text-white p-1 rounded hover:bg-indigo-900 ml-2">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Área de visualización de la hoja simulada A4 -->
+      <div class="flex-1 bg-slate-300 p-4 sm:p-6 overflow-y-auto flex justify-center">
+        <div id="modal-preview-content" class="bg-white shadow-2xl origin-top transition-transform transform scale-90 sm:scale-95">
+          <!-- Inyección limpia de la hoja clonada -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Lógica de la aplicación -->
+  <script src="script.js"></script>
+</body>
+</html>

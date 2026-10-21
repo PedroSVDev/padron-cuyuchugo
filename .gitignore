@@ -1,0 +1,6 @@
+# Solo se publican los archivos de la aplicación
+*
+!.gitignore
+!index.html
+!styles.css
+!script.js
