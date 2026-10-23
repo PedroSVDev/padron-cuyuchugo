@@ -3,16 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Protección de datos: la página no puede enviar información a ningún servidor
+       (connect-src 'none') ni cargar código desde fuera de este mismo sitio. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
   <title>Sistema de Padrón Electoral - I.E. Cuyuchugo</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- JsBarcode para códigos de barras Code128 -->
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
-  <!-- html2canvas + jsPDF para exportar a PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Librerías guardadas dentro del proyecto (carpeta lib/), versiones fijas -->
+  <!-- Tailwind CSS 3.4.17 -->
+  <script src="lib/tailwind.js"></script>
+  <!-- JsBarcode 3.11.5 para códigos de barras Code128 -->
+  <script src="lib/JsBarcode.all.min.js"></script>
+  <!-- Lucide Icons 1.48.0 -->
+  <script src="lib/lucide.min.js"></script>
+  <!-- html2canvas 1.4.1 + jsPDF 2.5.1 para exportar a PDF -->
+  <script src="lib/html2canvas.min.js"></script>
+  <script src="lib/jspdf.umd.min.js"></script>
   <!-- Estilos propios -->
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -58,6 +64,29 @@
       </div>
     </div>
   </header>
+
+  <!-- BARRA DE DATOS Y PRIVACIDAD (NO IMPRIMIBLE) -->
+  <div class="no-print bg-white border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2 text-xs text-slate-600">
+        <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+        <span>Los datos se guardan <strong>solo en este navegador</strong> y no se envían a internet.</span>
+        <span id="backup-status" class="font-semibold"></span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="exportBackup()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Guardar Respaldo
+        </button>
+        <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+          <i data-lucide="upload" class="w-3.5 h-3.5"></i> Cargar Respaldo
+          <input type="file" accept=".json,application/json" class="hidden" onchange="importBackup(event)">
+        </label>
+        <button onclick="deleteAllData()" class="text-rose-600 hover:bg-rose-50 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5 transition">
+          <i data-lucide="shield-x" class="w-3.5 h-3.5"></i> Borrar Todos los Datos
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- CONTENIDO PRINCIPAL -->
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col items-center">

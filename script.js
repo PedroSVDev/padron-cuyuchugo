@@ -33,6 +33,7 @@ let mesaRenderTimer = null;
 window.updateMesaConfig = function(input) {
   mesaConfig[input.dataset.field] = input.value.toUpperCase();
   try { localStorage.setItem('padron-mesa-config', JSON.stringify(mesaConfig)); } catch (e) {}
+  markChanged();
   clearTimeout(mesaRenderTimer);
   mesaRenderTimer = setTimeout(() => {
     renderSecundaria();
@@ -79,10 +80,174 @@ function saveState() {
     if (!storageWarningShown) {
       storageWarningShown = true;
       alert('Aviso: el navegador no tiene más espacio para guardar los datos (posiblemente por las fotos). ' +
-            'Lo que agregues desde ahora se perderá al cerrar la página. Descarga el PDF antes de salir.');
+            'Usa "Guardar Respaldo" ahora para no perder lo que agregues desde este momento.');
     }
   }
+  markChanged();
 }
+
+// -------------------------------------------------------------
+// RESPALDO: guardar / cargar un archivo para continuar en otra computadora
+// -------------------------------------------------------------
+const BACKUP_APP_ID = 'padron-electoral-cuyuchugo';
+const LAST_CHANGE_KEY = 'padron-ultimo-cambio';
+const LAST_BACKUP_KEY = 'padron-ultimo-respaldo';
+
+function readTime(key) {
+  try { return Number(localStorage.getItem(key)) || 0; } catch (e) { return 0; }
+}
+function writeTime(key, value) {
+  try { localStorage.setItem(key, String(value)); } catch (e) {}
+}
+
+function markChanged() {
+  writeTime(LAST_CHANGE_KEY, Date.now());
+  updateBackupStatus();
+}
+
+function updateBackupStatus() {
+  const el = document.getElementById('backup-status');
+  if (!el) return;
+  const total = studentsSecundaria.length + studentsPrimaria.length;
+  const lastChange = readTime(LAST_CHANGE_KEY);
+  const lastBackup = readTime(LAST_BACKUP_KEY);
+  if (total === 0) {
+    el.textContent = '';
+  } else if (lastBackup && lastBackup >= lastChange) {
+    el.textContent = '• Respaldo al día';
+    el.className = 'font-semibold text-emerald-600';
+  } else {
+    el.textContent = '• Hay cambios sin respaldar';
+    el.className = 'font-semibold text-amber-600';
+  }
+}
+
+function backupTimestamp() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}h${p(d.getMinutes())}`;
+}
+
+window.exportBackup = function() {
+  const data = {
+    app: BACKUP_APP_ID,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    mesaConfig,
+    secundaria: studentsSecundaria,
+    primaria: studentsPrimaria,
+    logoSchool: logoSchoolImg,
+    logoOnpe: logoOnpeImg
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `padron_respaldo_${backupTimestamp()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  writeTime(LAST_BACKUP_KEY, Date.now());
+  updateBackupStatus();
+};
+
+// Validación estricta: solo se aceptan los campos esperados y con el formato correcto
+function cleanText(value, maxLen) {
+  return typeof value === 'string' ? value.trim().toUpperCase().slice(0, maxLen) : '';
+}
+function cleanImage(value) {
+  return typeof value === 'string' && /^data:image\/(png|jpeg|webp|gif|svg\+xml);/.test(value) ? value : null;
+}
+function cleanStudents(list, level) {
+  if (!Array.isArray(list)) throw new Error(`la lista de ${level} no es válida`);
+  const seen = new Set();
+  return list.map((s, i) => {
+    const dni = typeof s?.dni === 'string' ? s.dni.trim() : '';
+    if (!/^\d{8}$/.test(dni)) throw new Error(`el alumno N° ${i + 1} de ${level} tiene un DNI inválido`);
+    if (seen.has(dni)) throw new Error(`el DNI ${dni} está repetido en ${level}`);
+    seen.add(dni);
+    const student = {
+      id: Number.isFinite(s.id) ? s.id : Date.now() + i,
+      apellidos: cleanText(s.apellidos, 80),
+      nombres: cleanText(s.nombres, 80),
+      dni
+    };
+    if (level === 'secundaria') student.foto = cleanImage(s.foto);
+    else student.grado = /^[1-6]° Primaria$/.test(s.grado) ? s.grado : '1° Primaria';
+    return student;
+  });
+}
+
+window.importBackup = function(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || data.app !== BACKUP_APP_ID) {
+        throw new Error('el archivo no es un respaldo de este sistema');
+      }
+      const secundaria = cleanStudents(data.secundaria, 'secundaria');
+      const primaria = cleanStudents(data.primaria, 'primaria');
+
+      const fecha = data.exportedAt ? new Date(data.exportedAt).toLocaleString('es-PE') : 'fecha desconocida';
+      const current = studentsSecundaria.length + studentsPrimaria.length;
+      const msg = `Respaldo del ${fecha}:\n` +
+        `• Secundaria: ${secundaria.length} alumnos\n• Primaria: ${primaria.length} alumnos\n\n` +
+        (current > 0
+          ? `Esto REEMPLAZARÁ los ${current} alumnos que hay ahora en este navegador. ¿Continuar?`
+          : '¿Cargar estos datos?');
+      if (!confirm(msg)) return;
+
+      studentsSecundaria = secundaria;
+      studentsPrimaria = primaria;
+      logoSchoolImg = cleanImage(data.logoSchool);
+      logoOnpeImg = cleanImage(data.logoOnpe);
+      if (data.mesaConfig && typeof data.mesaConfig === 'object') {
+        mesaConfig = { ...MESA_DEFAULTS };
+        Object.keys(MESA_DEFAULTS).forEach(k => {
+          if (typeof data.mesaConfig[k] === 'string') mesaConfig[k] = cleanText(data.mesaConfig[k], 60);
+        });
+        try { localStorage.setItem('padron-mesa-config', JSON.stringify(mesaConfig)); } catch (e) {}
+        fillMesaInputs();
+      }
+
+      saveState();
+      // Lo cargado coincide con un respaldo existente
+      writeTime(LAST_BACKUP_KEY, Date.now());
+      updateBackupStatus();
+      renderSecundaria();
+      renderPrimaria();
+      alert('Respaldo cargado correctamente. Puedes continuar donde te quedaste.');
+    } catch (err) {
+      alert('No se pudo cargar el respaldo: ' + err.message + '.');
+    }
+  };
+  reader.readAsText(file);
+};
+
+// Borra todo lo guardado en este navegador (al terminar el proceso electoral o en una PC compartida)
+window.deleteAllData = function() {
+  if (!confirm('Se borrarán TODOS los datos guardados en este navegador: alumnos de secundaria y primaria, fotos, logos y datos de mesa.\n\n' +
+               'Si aún los necesitas, primero usa "Guardar Respaldo".\n\n¿Borrar todo?')) return;
+  [STORAGE_KEY, 'padron-mesa-config', LAST_CHANGE_KEY, LAST_BACKUP_KEY].forEach(k => {
+    try { localStorage.removeItem(k); } catch (e) {}
+  });
+  studentsSecundaria = [];
+  studentsPrimaria = [];
+  logoSchoolImg = null;
+  logoOnpeImg = null;
+  mesaConfig = { ...MESA_DEFAULTS };
+  fillMesaInputs();
+  updateBackupStatus();
+  renderSecundaria();
+  renderPrimaria();
+};
 
 // Reduce fotos y logos antes de guardarlos para no llenar el almacenamiento del navegador
 function resizeImageFile(file, maxSize, mime) {
@@ -190,7 +355,7 @@ function renderSecCard(student, orderNum) {
         <div class="flex items-center gap-2">
           <span class="text-sm font-black tracking-tight leading-none">${orderStr}</span>
           <span class="text-xs font-black tracking-wider leading-none">
-            ${student.dni}
+            ${escapeHtml(student.dni)}
           </span>
           <span class="text-[7px] font-extrabold uppercase text-slate-500 leading-none">N° DNI</span>
         </div>
@@ -206,14 +371,14 @@ function renderSecCard(student, orderNum) {
       <div class="flex-1 flex overflow-hidden">
         <!-- 1. Foto Carné -->
         <div class="w-[82px] min-w-[82px] max-w-[82px] border-r-2 border-black p-1 bg-slate-50 flex items-center justify-center overflow-hidden">
-          <img src="${photoSrc}" alt="Foto" class="w-full h-full object-cover grayscale contrast-125 border border-slate-300">
+          <img src="${escapeHtml(photoSrc)}" alt="Foto" class="w-full h-full object-cover grayscale contrast-125 border border-slate-300">
         </div>
 
         <!-- 2. Centro: Nombres Completos y Casilleros de Sufragio -->
         <div class="flex-1 flex flex-col justify-between p-1.5 overflow-hidden">
           <div>
             <div class="font-black text-[9.5px] uppercase tracking-tight leading-tight line-clamp-2">
-              ${student.apellidos}, ${student.nombres}
+              ${escapeHtml(student.apellidos)}, ${escapeHtml(student.nombres)}
             </div>
             <div class="text-[7px] font-bold text-slate-600 tracking-wider uppercase mt-0.5">
               ESTUDIANTE REGULAR
@@ -444,14 +609,14 @@ function renderPrimaria() {
               ${String(orderNum).padStart(2, '0')}
             </td>
             <td class="border border-black px-3 py-1.5 w-[39%] break-words">
-              <div class="font-black text-xs uppercase tracking-tight text-black leading-tight">${student.apellidos}</div>
-              <div class="font-semibold text-[11px] uppercase tracking-normal text-slate-700 leading-tight mt-0.5">${student.nombres}</div>
+              <div class="font-black text-xs uppercase tracking-tight text-black leading-tight">${escapeHtml(student.apellidos)}</div>
+              <div class="font-semibold text-[11px] uppercase tracking-normal text-slate-700 leading-tight mt-0.5">${escapeHtml(student.nombres)}</div>
             </td>
             <td class="border border-black p-2 text-center font-mono font-bold text-sm w-[12%]">
-              ${student.dni}
+              ${escapeHtml(student.dni)}
             </td>
             <td class="border border-black p-2 text-center font-bold text-xs w-[11%] text-slate-800">
-              ${student.grado}
+              ${escapeHtml(student.grado)}
             </td>
             <td class="border border-black p-2 w-[19%] relative text-right align-bottom">
               <span class="text-[7.5px] font-bold text-slate-400 uppercase select-none">FIRMA DEL ALUMNO</span>
@@ -879,6 +1044,7 @@ window.downloadPDF = async function(btn) {
 // Inicialización al cargar la ventana
 window.onload = function() {
   fillMesaInputs();
+  updateBackupStatus();
   renderSecundaria();
   renderPrimaria();
   if (window.lucide && typeof lucide.createIcons === 'function') {

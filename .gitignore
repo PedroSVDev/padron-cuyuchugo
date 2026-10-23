@@ -4,3 +4,5 @@
 !index.html
 !styles.css
 !script.js
+!lib/
+!lib/*.js
