@@ -22,7 +22,62 @@
   <!-- Estilos propios -->
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
+<body class="terms-pending bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- ======================================================== -->
+  <!-- PANTALLA INICIAL: ACEPTACIÓN DE TÉRMINOS (NO IMPRIMIBLE) -->
+  <!-- ======================================================== -->
+  <div id="terms-gate" class="no-print fixed inset-0 z-[100] bg-indigo-950 overflow-y-auto p-3 sm:p-6">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl mx-auto my-4 overflow-hidden">
+      <div class="px-6 pt-6 pb-4 flex items-center gap-3 border-b border-slate-100">
+        <div class="bg-amber-400 text-slate-950 p-2.5 rounded-xl">
+          <i data-lucide="shield-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h2 class="text-base font-black text-slate-900 leading-tight">Términos de Uso y Privacidad</h2>
+          <p class="text-xs text-slate-500">Lea y acepte antes de usar el Sistema de Padrón Electoral Escolar</p>
+        </div>
+      </div>
+      <div class="px-6 py-4 text-sm text-slate-700 leading-relaxed flex flex-col gap-4 max-h-[55vh] overflow-y-auto">
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Aviso de Privacidad y Cumplimiento Normativo (Ley N° 29733)</h4>
+          <p>
+            Esta herramienta opera 100% en el entorno local del navegador del usuario: los datos se guardan únicamente en el
+            almacenamiento local del navegador (localStorage) del propio dispositivo. No almacena, transmite ni comparte datos personales,
+            nombres, DNI ni fotografías de menores de edad hacia ningún servidor externo o base de datos de terceros.
+            La custodia, legitimidad y tratamiento de los datos escolares corresponden exclusivamente a la Institución Educativa
+            y a su Comité Electoral Escolar.
+          </p>
+        </section>
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Datos de menores de edad</h4>
+          <ul class="list-disc pl-5 flex flex-col gap-1">
+            <li>Registrar únicamente los datos necesarios para el proceso electoral escolar (nombres, DNI, grado y, de manera opcional, fotografía).</li>
+            <li>Contar con la autorización de la Institución Educativa y, para las fotografías, con el consentimiento de los padres o apoderados.</li>
+            <li>Tratar los padrones impresos y los PDF generados como documentos confidenciales: no publicarlos ni compartirlos en grupos o canales abiertos.</li>
+            <li>Al finalizar el proceso, o al usar una computadora compartida, eliminar la información con el botón "Borrar Todos los Datos".</li>
+          </ul>
+        </section>
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Formato y referencia institucional</h4>
+          <p>
+            Formato y diseño pedagógico para Municipios Escolares estructurado conforme a las pautas cívicas de la ONPE.
+            Esta es una herramienta independiente: no es un producto oficial de la ONPE ni está afiliada a dicha entidad.
+          </p>
+        </section>
+      </div>
+      <form onsubmit="acceptTerms(event)" class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col gap-3">
+        <label class="flex items-start gap-2 text-sm text-slate-700 cursor-pointer">
+          <input id="terms-checkbox" type="checkbox" required class="mt-1 w-4 h-4 accent-indigo-600">
+          <span>He leído y acepto los términos de uso y me comprometo a tratar los datos de los estudiantes conforme a la Ley N° 29733.</span>
+        </label>
+        <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg text-sm flex items-center justify-center gap-2 shadow transition">
+          <i data-lucide="check" class="w-4 h-4"></i> Aceptar y continuar
+        </button>
+      </form>
+    </div>
+  </div>
 
   <!-- BARRA DE NAVEGACIÓN SUPERIOR (NO IMPRIMIBLE) -->
   <header class="no-print bg-indigo-950 text-white shadow-md sticky top-0 z-40">
@@ -35,6 +90,7 @@
         <div>
           <h1 class="text-sm sm:text-base font-bold leading-tight">I.E. José de la Torre Ugarte - Cuyuchugo</h1>
           <p class="text-xs text-indigo-200">Sistema Generador de Padrones de Sufragio para Municipio Escolar</p>
+          <p class="text-[10px] italic text-indigo-300/90 leading-tight">Formato y diseño pedagógico para Municipios Escolares estructurado conforme a las pautas cívicas de la ONPE</p>
         </div>
       </div>
 
@@ -71,18 +127,13 @@
       <div class="flex items-center gap-2 text-xs text-slate-600">
         <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600 shrink-0"></i>
         <span>Los datos se guardan <strong>solo en este navegador</strong> y no se envían a internet.</span>
-        <span id="backup-status" class="font-semibold"></span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <button onclick="exportBackup()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow transition">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i> Guardar Respaldo
-        </button>
-        <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
-          <i data-lucide="upload" class="w-3.5 h-3.5"></i> Cargar Respaldo
-          <input type="file" accept=".json,application/json" class="hidden" onchange="importBackup(event)">
-        </label>
         <button onclick="deleteAllData()" class="text-rose-600 hover:bg-rose-50 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-200 flex items-center gap-1.5 transition">
           <i data-lucide="shield-x" class="w-3.5 h-3.5"></i> Borrar Todos los Datos
+        </button>
+        <button onclick="openLegalModal()" class="text-slate-600 hover:bg-slate-100 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1.5 transition">
+          <i data-lucide="shield" class="w-3.5 h-3.5 text-indigo-600"></i> Términos y Privacidad
         </button>
       </div>
     </div>
@@ -276,6 +327,20 @@
     </div>
   </main>
 
+  <!-- PIE DE PÁGINA LEGAL (NO IMPRIMIBLE) -->
+  <footer class="no-print bg-white border-t border-slate-200 mt-6">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-start gap-3 text-[11px] text-slate-500 leading-relaxed">
+      <i data-lucide="shield" class="w-5 h-5 text-indigo-600 shrink-0 mt-0.5"></i>
+      <p class="flex-1">
+        <strong class="text-slate-700">Aviso de Privacidad y Cumplimiento Normativo (Ley N° 29733):</strong>
+        Esta herramienta opera 100% en el entorno local del navegador del usuario y no almacena, transmite ni comparte datos personales,
+        nombres, DNI ni fotografías de menores de edad hacia ningún servidor externo o base de datos de terceros.
+        La custodia, legitimidad y tratamiento de los datos escolares corresponden exclusivamente a la Institución Educativa y a su Comité Electoral Escolar.
+        <button onclick="openLegalModal()" class="text-indigo-600 hover:underline font-semibold">Ver Términos y Privacidad</button>
+      </p>
+    </div>
+  </footer>
+
   <!-- ======================================================== -->
   <!-- MODAL DE VISTA PREVIA LIMPIA (A4 / PDF)                  -->
   <!-- ======================================================== -->
@@ -316,6 +381,54 @@
     </div>
   </div>
 
+
+  <!-- ======================================================== -->
+  <!-- MODAL TÉRMINOS Y PRIVACIDAD (NO IMPRIMIBLE)              -->
+  <!-- ======================================================== -->
+  <div id="legal-modal" class="no-print hidden fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto" onclick="if (event.target === this) closeLegalModal()">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl mx-auto my-4 overflow-hidden">
+      <div class="bg-indigo-950 text-white px-5 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="shield" class="w-5 h-5 text-amber-400"></i>
+          <h3 class="font-bold text-sm">Términos y Privacidad</h3>
+        </div>
+        <button onclick="closeLegalModal()" class="text-slate-300 hover:text-white p-1 rounded hover:bg-indigo-900">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-5 text-sm text-slate-700 leading-relaxed flex flex-col gap-4">
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Aviso de Privacidad y Cumplimiento Normativo (Ley N° 29733)</h4>
+          <p>
+            Esta herramienta opera 100% en el entorno local del navegador del usuario: los datos se guardan únicamente en el
+            almacenamiento local del navegador (localStorage) del propio dispositivo.
+            No almacena, transmite ni comparte datos personales, nombres, DNI ni fotografías de menores de edad hacia ningún servidor externo
+            o base de datos de terceros. La custodia, legitimidad y tratamiento de los datos escolares corresponden exclusivamente a la
+            Institución Educativa y a su Comité Electoral Escolar.
+          </p>
+        </section>
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Responsabilidades del usuario</h4>
+          <ul class="list-disc pl-5 flex flex-col gap-1">
+            <li>Registrar únicamente los datos necesarios para el proceso electoral escolar.</li>
+            <li>Contar con la autorización de la Institución Educativa y, para las fotografías, con el consentimiento de los padres o apoderados.</li>
+            <li>Tratar los padrones impresos y los PDF generados como documentos confidenciales: no publicarlos ni compartirlos en grupos o canales abiertos.</li>
+            <li>Al finalizar el proceso, o al usar una computadora compartida, eliminar la información con el botón "Borrar Todos los Datos".</li>
+          </ul>
+        </section>
+        <section>
+          <h4 class="font-black text-slate-900 mb-1">Formato y referencia institucional</h4>
+          <p>
+            Formato y diseño pedagógico para Municipios Escolares estructurado conforme a las pautas cívicas de la ONPE.
+            Esta es una herramienta independiente: no es un producto oficial de la ONPE ni está afiliada a dicha entidad.
+          </p>
+        </section>
+      </div>
+      <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 text-right">
+        <button onclick="closeLegalModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">Entendido</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Lógica de la aplicación -->
   <script src="script.js"></script>

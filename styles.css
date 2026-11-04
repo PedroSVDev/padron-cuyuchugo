@@ -28,6 +28,17 @@
   height: 23mm;
 }
 
+/* Términos de uso: hasta aceptarlos solo se ve la pantalla de términos */
+#terms-gate {
+  display: none;
+}
+body.terms-pending #terms-gate {
+  display: block;
+}
+body.terms-pending > :not(#terms-gate) {
+  display: none !important;
+}
+
 /* Estilos de impresión estrictos */
 @media print {
   body {
