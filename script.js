@@ -51,10 +51,14 @@ function fillMesaInputs() {
 // -------------------------------------------------------------
 const STORAGE_KEY = 'padron-datos-v1';
 
+// Cargos de la mesa de sufragio: 3 titulares + 3 suplentes
+const MESA_ROLES = ['PRESIDENTE', 'SECRETARIO', 'TERCER MIEMBRO', 'PRIMER SUPLENTE', 'SEGUNDO SUPLENTE', 'TERCER SUPLENTE'];
+
 let logoSchoolImg = null;
 let logoOnpeImg = null;
 let studentsSecundaria = [];
 let studentsPrimaria = [];
+let mesaMembers = defaultMesaMembers();
 
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
@@ -63,6 +67,7 @@ try {
     studentsPrimaria = Array.isArray(saved.primaria) ? saved.primaria : [];
     logoSchoolImg = saved.logoSchool || null;
     logoOnpeImg = saved.logoOnpe || null;
+    mesaMembers = normalizeMesaMembers(saved.members);
   }
 } catch (e) {}
 
@@ -73,7 +78,8 @@ function saveState() {
       secundaria: studentsSecundaria,
       primaria: studentsPrimaria,
       logoSchool: logoSchoolImg,
-      logoOnpe: logoOnpeImg
+      logoOnpe: logoOnpeImg,
+      members: mesaMembers
     }));
   } catch (e) {
     if (!storageWarningShown) {
@@ -95,11 +101,350 @@ window.deleteAllData = function() {
   studentsPrimaria = [];
   logoSchoolImg = null;
   logoOnpeImg = null;
+  mesaMembers = defaultMesaMembers();
   mesaConfig = { ...MESA_DEFAULTS };
   fillMesaInputs();
   renderSecundaria();
   renderPrimaria();
 };
+
+// -------------------------------------------------------------
+// MIEMBROS DE MESA (3 titulares + 3 suplentes por nivel)
+// -------------------------------------------------------------
+// Cada cargo: mode 'none' (sin asignar) | 'list' (alumno de la lista) | 'manual' (escrito a mano)
+function emptyMemberSlot() {
+  return { mode: 'none', studentId: null, dni: '', nombre: '' };
+}
+
+function defaultMesaMembers() {
+  return {
+    secundaria: { include: true, slots: MESA_ROLES.map(emptyMemberSlot) },
+    primaria: { include: true, slots: MESA_ROLES.map(emptyMemberSlot) }
+  };
+}
+
+function normalizeMesaMembers(raw) {
+  const result = defaultMesaMembers();
+  ['secundaria', 'primaria'].forEach(level => {
+    const src = raw && raw[level];
+    if (!src) return;
+    result[level].include = src.include !== false;
+    if (Array.isArray(src.slots)) {
+      result[level].slots = MESA_ROLES.map((_, i) => {
+        const s = src.slots[i] || {};
+        if (s.mode !== 'list' && s.mode !== 'manual') return emptyMemberSlot();
+        return {
+          mode: s.mode,
+          studentId: Number.isFinite(s.studentId) ? s.studentId : null,
+          dni: typeof s.dni === 'string' ? s.dni.replace(/\D/g, '').slice(0, 8) : '',
+          nombre: typeof s.nombre === 'string' ? s.nombre.toUpperCase().slice(0, 120) : ''
+        };
+      });
+    }
+  });
+  return result;
+}
+
+function studentsOf(level) {
+  return level === 'secundaria' ? studentsSecundaria : studentsPrimaria;
+}
+
+// Datos a mostrar de un cargo. Si el alumno elegido de la lista fue eliminado, el cargo queda libre.
+function resolveMember(level, slot) {
+  if (slot.mode === 'list') {
+    const s = studentsOf(level).find(st => st.id === slot.studentId && st.dni === slot.dni);
+    if (!s) return null;
+    return { nombre: `${s.apellidos}, ${s.nombres}`, dni: s.dni };
+  }
+  if (slot.mode === 'manual') return { nombre: slot.nombre, dni: slot.dni };
+  return null;
+}
+
+function pruneMesaMembers(level) {
+  let changed = false;
+  mesaMembers[level].slots = mesaMembers[level].slots.map(slot => {
+    if (slot.mode === 'list' && !resolveMember(level, slot)) {
+      changed = true;
+      return emptyMemberSlot();
+    }
+    return slot;
+  });
+  if (changed) saveState();
+}
+
+const membersPanelOpen = { secundaria: false, primaria: false };
+
+function renderMembersPanel(level) {
+  const panel = document.getElementById(`members-panel-${level}`);
+  if (!panel) return;
+  pruneMesaMembers(level);
+
+  const accent = level === 'secundaria' ? 'indigo' : 'emerald';
+  const config = mesaMembers[level];
+  const students = studentsOf(level);
+  const assignedIds = config.slots.filter(s => s.mode === 'list').map(s => s.studentId);
+  const assignedCount = config.slots.filter(s => resolveMember(level, s)).length;
+
+  const rows = config.slots.map((slot, i) => {
+    const options = students
+      .filter(s => !assignedIds.includes(s.id) || s.id === slot.studentId)
+      .map(s => `<option value="id:${s.id}" ${slot.mode === 'list' && slot.studentId === s.id ? 'selected' : ''}>` +
+                `${escapeHtml(s.apellidos)}, ${escapeHtml(s.nombres)} — ${escapeHtml(s.dni)}</option>`)
+      .join('');
+    const isManual = slot.mode === 'manual';
+    const member = resolveMember(level, slot);
+    const inputClass = `w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-lg uppercase focus:ring-1 focus:ring-${accent}-500 ` +
+                       (isManual ? 'bg-white' : 'bg-slate-100 text-slate-500');
+    return `
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center ${i === 3 ? 'mt-2 pt-2 border-t border-dashed border-slate-200' : ''}">
+        <div class="sm:col-span-2 text-[11px] font-black text-slate-700 uppercase">${MESA_ROLES[i]}</div>
+        <div class="sm:col-span-4">
+          <select onchange="selectMesaMember('${level}', ${i}, this.value)"
+                  class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded-lg focus:ring-1 focus:ring-${accent}-500">
+            <option value="none" ${slot.mode === 'none' ? 'selected' : ''}>— Sin asignar —</option>
+            <option value="manual" ${isManual ? 'selected' : ''}>✎ Escribir a mano</option>
+            ${options ? `<optgroup label="Alumnos de la lista">${options}</optgroup>` : ''}
+          </select>
+        </div>
+        <div class="sm:col-span-4">
+          <input type="text" placeholder="Apellidos y nombres" maxlength="120" ${isManual ? '' : 'readonly tabindex="-1"'}
+                 value="${escapeHtml(member ? member.nombre : '')}"
+                 oninput="updateManualMember('${level}', ${i}, 'nombre', this)" class="${inputClass}">
+        </div>
+        <div class="sm:col-span-2">
+          <input type="text" placeholder="DNI" maxlength="8" inputmode="numeric" ${isManual ? '' : 'readonly tabindex="-1"'}
+                 value="${escapeHtml(member ? member.dni : '')}"
+                 oninput="updateManualMember('${level}', ${i}, 'dni', this)" class="${inputClass} font-mono">
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  panel.innerHTML = `
+    <details class="border-b border-slate-100 pb-3 mb-3" ${membersPanelOpen[level] ? 'open' : ''}
+             ontoggle="membersPanelOpen['${level}'] = this.open">
+      <summary class="cursor-pointer select-none text-xs font-bold text-slate-700 flex items-center gap-2">
+        <i data-lucide="users-round" class="w-4 h-4 text-${accent}-600"></i>
+        Miembros de Mesa
+        <span class="font-semibold text-slate-400">(${assignedCount} de 6 asignados)</span>
+      </summary>
+      <div class="mt-3 flex flex-col gap-2">
+        <p class="text-[11px] text-slate-500">
+          Elija a cada miembro de la lista de alumnos o escríbalo a mano (por ejemplo, un docente).
+          Los cargos sin asignar salen en blanco en la hoja de mesa para llenarlos a mano.
+        </p>
+        ${rows}
+        <label class="mt-2 flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+          <input type="checkbox" ${config.include ? 'checked' : ''} onchange="toggleMesaSheet('${level}', this.checked)"
+                 class="w-4 h-4 accent-${accent}-600">
+          Incluir la <strong>Hoja de Miembros de Mesa</strong> al final del padrón (vista previa, PDF e impresión)
+        </label>
+      </div>
+    </details>
+  `;
+}
+
+function rerenderLevel(level) {
+  if (level === 'secundaria') renderSecundaria();
+  else renderPrimaria();
+}
+
+window.selectMesaMember = function(level, index, value) {
+  let slot = emptyMemberSlot();
+  if (value === 'manual') {
+    slot = { mode: 'manual', studentId: null, dni: '', nombre: '' };
+  } else if (value.startsWith('id:')) {
+    const id = Number(value.slice(3));
+    const s = studentsOf(level).find(st => st.id === id);
+    if (s) slot = { mode: 'list', studentId: s.id, dni: s.dni, nombre: '' };
+  }
+  mesaMembers[level].slots[index] = slot;
+  saveState();
+  rerenderLevel(level);
+};
+
+// Al escribir a mano solo se actualiza la hoja de mesa (sin redibujar el panel, para no perder el cursor)
+const mesaSheetTimers = {};
+window.updateManualMember = function(level, index, field, input) {
+  const slot = mesaMembers[level].slots[index];
+  if (slot.mode !== 'manual') return;
+  if (field === 'dni') {
+    const digits = input.value.replace(/\D/g, '').slice(0, 8);
+    if (digits !== input.value) input.value = digits;
+    slot.dni = digits;
+  } else {
+    slot.nombre = input.value.toUpperCase().slice(0, 120);
+  }
+  saveState();
+  clearTimeout(mesaSheetTimers[level]);
+  mesaSheetTimers[level] = setTimeout(() => refreshMesaSheet(level), 250);
+};
+
+window.toggleMesaSheet = function(level, checked) {
+  mesaMembers[level].include = checked;
+  saveState();
+  rerenderLevel(level);
+};
+
+function mesaMemberRows(level, from, to) {
+  let html = '';
+  for (let i = from; i < to; i++) {
+    const m = resolveMember(level, mesaMembers[level].slots[i]);
+    html += `
+      <tr class="mesa-member-row">
+        <td class="border border-black px-2 text-center font-black text-xs font-mono w-[6%]">${i + 1}</td>
+        <td class="border border-black px-2 font-black text-[10px] uppercase w-[17%]">${MESA_ROLES[i]}</td>
+        <td class="border border-black px-3 font-black text-xs uppercase leading-tight w-[38%]">${m ? escapeHtml(m.nombre) : ''}</td>
+        <td class="border border-black px-2 text-center font-mono font-bold text-sm w-[14%]">${m ? escapeHtml(m.dni) : ''}</td>
+        <td class="border border-black px-2 text-right align-bottom w-[25%]">
+          <span class="text-[7px] font-bold text-slate-400 uppercase select-none">FIRMA</span>
+        </td>
+      </tr>
+    `;
+  }
+  return html;
+}
+
+function mesaMembersTable(level, title, from, to) {
+  return `
+    <div class="mb-3">
+      <div class="bg-black text-white text-[10px] font-black uppercase tracking-wider px-2 py-1 leading-tight">${title}</div>
+      <table class="w-full border-collapse border-2 border-black table-fixed">
+        <thead>
+          <tr class="uppercase text-[9px] font-black tracking-wider bg-slate-100">
+            <th class="border border-black p-1.5 text-center w-[6%]">N°</th>
+            <th class="border border-black p-1.5 text-left w-[17%]">Cargo</th>
+            <th class="border border-black p-1.5 text-left w-[38%]">Apellidos y Nombres</th>
+            <th class="border border-black p-1.5 text-center w-[14%]">DNI</th>
+            <th class="border border-black p-1.5 text-center w-[25%]">Firma</th>
+          </tr>
+        </thead>
+        <tbody>${mesaMemberRows(level, from, to)}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function fillBox(label, value) {
+  return `
+    <div class="border border-black px-2 py-1">
+      <span class="text-[7px] text-slate-500 block leading-tight font-bold uppercase">${label}</span>
+      <span class="block text-sm font-black leading-tight min-h-[22px]">${value || ''}</span>
+    </div>
+  `;
+}
+
+function buildMesaSheet(level) {
+  const isSec = level === 'secundaria';
+  const sheet = document.createElement('div');
+  sheet.id = `mesa-sheet-${level}`;
+  sheet.className = 'sheet-a4 shadow-xl border border-slate-300 p-5 flex flex-col mb-8';
+
+  const schoolLogoSrc = logoSchoolImg || PLACEHOLDER_SCHOOL;
+  const onpeLogoSrc = logoOnpeImg || PLACEHOLDER_ONPE;
+  const mesaLabel = isSec ? escapeHtml(mesaConfig.secMesa) : `${escapeHtml(mesaConfig.priMesa)} - PRIMARIA (1° A 6°)`;
+  const total = studentsOf(level).length;
+
+  const header = `
+    <div class="border-b-2 border-black pb-2 mb-3">
+      <div class="flex items-center justify-between">
+        <div class="w-16 h-16 flex items-center justify-center">
+          <img src="${escapeHtml(schoolLogoSrc)}" alt="Escudo I.E." class="max-h-full max-w-full object-contain">
+        </div>
+        <div class="text-center flex-1 px-2">
+          <div class="text-[9px] font-bold tracking-widest text-slate-700 uppercase leading-tight">ELECCIONES MUNICIPIO ESCOLAR 2026</div>
+          <h2 class="text-base font-black tracking-tight uppercase leading-snug mt-0.5">
+            ${isSec ? 'I.E. JOSÉ DE LA TORRE UGARTE - CUYUCHUGO' : 'I.E. CUYUCHUGO - USQUIL'}
+          </h2>
+          <div class="inline-block bg-black text-white text-xs font-black px-3 py-1 leading-tight tracking-wider uppercase mt-1">
+            MIEMBROS DE MESA DE SUFRAGIO - NIVEL ${isSec ? 'SECUNDARIA' : 'PRIMARIA'}
+          </div>
+        </div>
+        <div class="w-16 h-16 flex items-center justify-center">
+          <img src="${escapeHtml(onpeLogoSrc)}" alt="Logo ONPE" class="max-h-full max-w-full object-contain">
+        </div>
+      </div>
+      <div class="grid ${isSec ? 'grid-cols-4' : 'grid-cols-2'} gap-1.5 mt-2 text-[9px] font-bold uppercase">
+        <div class="border border-black px-2 py-1">
+          <span class="text-[7px] text-slate-500 block leading-tight">MESA DE SUFRAGIO N°</span>
+          <span class="block text-xs font-black leading-tight tracking-wider">${mesaLabel}</span>
+        </div>
+        ${isSec ? `
+        <div class="border border-black px-2 py-1">
+          <span class="text-[7px] text-slate-500 block leading-tight">DEPARTAMENTO</span>
+          <span class="block leading-tight">${escapeHtml(mesaConfig.departamento)}</span>
+        </div>
+        <div class="border border-black px-2 py-1">
+          <span class="text-[7px] text-slate-500 block leading-tight">PROVINCIA</span>
+          <span class="block leading-tight">${escapeHtml(mesaConfig.provincia)}</span>
+        </div>
+        <div class="border border-black px-2 py-1">
+          <span class="text-[7px] text-slate-500 block leading-tight">DISTRITO / CASERÍO</span>
+          <span class="block leading-tight">${escapeHtml(mesaConfig.distrito)}</span>
+        </div>` : `
+        <div class="border border-black px-2 py-1 text-right">
+          <span class="text-[7px] text-slate-500 block leading-tight">ELECTORES HÁBILES</span>
+          <span class="block text-xs font-black leading-tight">${total} ESTUDIANTES</span>
+        </div>`}
+      </div>
+    </div>
+  `;
+
+  const body = `
+    ${mesaMembersTable(level, 'Miembros Titulares', 0, 3)}
+    ${mesaMembersTable(level, 'Miembros Suplentes', 3, 6)}
+
+    <div class="mb-3">
+      <div class="bg-black text-white text-[10px] font-black uppercase tracking-wider px-2 py-1 leading-tight">Instalación y Cierre de la Mesa</div>
+      <div class="grid grid-cols-3 gap-1.5 mt-1.5">
+        ${fillBox('Fecha', '')}
+        ${fillBox('Hora de instalación', '')}
+        ${fillBox('Hora de cierre', '')}
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <div class="bg-black text-white text-[10px] font-black uppercase tracking-wider px-2 py-1 leading-tight">Resumen de la Votación</div>
+      <div class="grid grid-cols-3 gap-1.5 mt-1.5">
+        ${fillBox('Total de electores hábiles', String(total))}
+        ${fillBox('Total de electores que votaron', '')}
+        ${fillBox('Total de electores que no votaron', '')}
+      </div>
+    </div>
+
+    <div class="flex-1 min-h-0 flex flex-col">
+      <div class="bg-black text-white text-[10px] font-black uppercase tracking-wider px-2 py-1 leading-tight">Observaciones</div>
+      <div class="flex-1 border-2 border-t-0 border-black flex flex-col justify-evenly px-3">
+        ${'<div class="border-b border-slate-400"></div>'.repeat(6)}
+      </div>
+    </div>
+  `;
+
+  const footer = `
+    <div class="border-t border-black pt-1.5 mt-2 flex items-center justify-between text-[8px] font-bold text-slate-600 uppercase">
+      <span>Comité Electoral Estudiantil • ${isSec ? 'I.E. José de la Torre Ugarte - Cuyuchugo' : 'Nivel Primaria Cuyuchugo'}</span>
+      <span class="font-black text-black">Hoja de Miembros de Mesa</span>
+      <span>Elecciones Municipio Escolar 2026</span>
+    </div>
+  `;
+
+  sheet.innerHTML = header + `<div class="flex-1 min-h-0 flex flex-col">${body}</div>` + footer;
+  return sheet;
+}
+
+// Agrega (o reemplaza) la hoja de mesa al final de las hojas del nivel
+function refreshMesaSheet(level) {
+  const container = document.getElementById(`${level}-sheets-container`);
+  if (!container) return;
+  const old = document.getElementById(`mesa-sheet-${level}`);
+  if (!mesaMembers[level].include) {
+    if (old) old.remove();
+    return;
+  }
+  const sheet = buildMesaSheet(level);
+  if (old) old.replaceWith(sheet);
+  else container.appendChild(sheet);
+}
 
 // Reduce fotos y logos antes de guardarlos para no llenar el almacenamiento del navegador
 function resizeImageFile(file, maxSize, mime) {
@@ -387,6 +732,8 @@ function renderSecundaria() {
     });
   }
 
+  renderMembersPanel('secundaria');
+  refreshMesaSheet('secundaria');
   if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
 }
 
@@ -522,6 +869,8 @@ function renderPrimaria() {
     container.appendChild(sheet);
   }
 
+  renderMembersPanel('primaria');
+  refreshMesaSheet('primaria');
   if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
 }
 

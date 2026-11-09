@@ -28,6 +28,11 @@
   height: 23mm;
 }
 
+/* Filas de la hoja de miembros de mesa: altura cómoda para firmar */
+.mesa-member-row {
+  height: 15mm;
+}
+
 /* Términos de uso: hasta aceptarlos solo se ve la pantalla de términos */
 #terms-gate {
   display: none;
