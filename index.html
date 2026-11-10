@@ -111,6 +111,9 @@
         <button onclick="openModalPreview()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
           <i data-lucide="eye" class="w-4 h-4"></i> Vista Previa A4 / PDF
         </button>
+        <button onclick="openMembersModal()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold px-3 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
+          <i data-lucide="users-round" class="w-4 h-4"></i> Miembros de Mesa
+        </button>
         <button onclick="downloadPDF(this)" class="btn-pdf bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white font-bold px-3.5 py-2 rounded-lg text-xs sm:text-sm flex items-center gap-1.5 shadow transition">
           <i data-lucide="file-down" class="w-4 h-4"></i> <span class="btn-label">Descargar PDF</span>
         </button>
@@ -432,6 +435,57 @@
       </div>
       <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 text-right">
         <button onclick="closeLegalModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- VENTANA MIEMBROS DE MESA: editar y exportar solo esa hoja -->
+  <!-- ======================================================== -->
+  <div id="members-modal" class="no-print hidden fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl shadow-2xl max-w-6xl mx-auto my-2 overflow-hidden">
+      <!-- Barra superior -->
+      <div class="bg-indigo-950 text-white px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="users-round" class="w-5 h-5 text-sky-300"></i>
+          <div>
+            <h3 class="font-bold text-sm">Miembros de Mesa — <span id="members-modal-level"></span></h3>
+            <p class="text-[11px] text-indigo-200">Edite solo los miembros de mesa y descargue o imprima únicamente esta hoja, sin repetir el padrón.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="downloadMesaPDF()" class="btn-mesa-pdf bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow">
+            <i data-lucide="file-down" class="w-3.5 h-3.5"></i> <span class="btn-label">Descargar PDF de esta hoja</span>
+          </button>
+          <button onclick="printMesaSheet()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 shadow">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Imprimir esta hoja
+          </button>
+          <button onclick="closeMembersModal()" class="text-slate-300 hover:text-white p-1 rounded hover:bg-indigo-900 ml-1" title="Cerrar">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-0">
+        <!-- Editor de cargos -->
+        <div class="p-4 sm:p-5 flex flex-col gap-2 border-b lg:border-b-0 lg:border-r border-slate-200">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-black text-slate-900">Cargos de la mesa</h4>
+            <span id="members-modal-count" class="text-xs font-semibold text-slate-400"></span>
+          </div>
+          <p class="text-[11px] text-slate-500">
+            Elija a cada miembro de la lista de alumnos o escríbalo a mano. Los cambios se guardan solos
+            y también se reflejan en el padrón completo.
+          </p>
+          <div id="members-modal-rows" class="members-modal-rows flex flex-col gap-2"></div>
+        </div>
+
+        <!-- Vista previa de la hoja -->
+        <div class="bg-slate-300 p-4 flex justify-center overflow-auto">
+          <div class="mesa-preview-frame">
+            <div id="members-modal-preview" class="mesa-preview-scale bg-white shadow-2xl"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

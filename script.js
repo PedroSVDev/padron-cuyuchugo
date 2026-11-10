@@ -174,18 +174,14 @@ function pruneMesaMembers(level) {
 
 const membersPanelOpen = { secundaria: false, primaria: false };
 
-function renderMembersPanel(level) {
-  const panel = document.getElementById(`members-panel-${level}`);
-  if (!panel) return;
-  pruneMesaMembers(level);
-
+// Filas de edición de los 6 cargos (se usan en el panel del nivel y en la ventana "Miembros de Mesa")
+function membersRowsHTML(level) {
   const accent = level === 'secundaria' ? 'indigo' : 'emerald';
   const config = mesaMembers[level];
   const students = studentsOf(level);
   const assignedIds = config.slots.filter(s => s.mode === 'list').map(s => s.studentId);
-  const assignedCount = config.slots.filter(s => resolveMember(level, s)).length;
 
-  const rows = config.slots.map((slot, i) => {
+  return config.slots.map((slot, i) => {
     const options = students
       .filter(s => !assignedIds.includes(s.id) || s.id === slot.studentId)
       .map(s => `<option value="id:${s.id}" ${slot.mode === 'list' && slot.studentId === s.id ? 'selected' : ''}>` +
@@ -219,6 +215,21 @@ function renderMembersPanel(level) {
       </div>
     `;
   }).join('');
+}
+
+function assignedMembersCount(level) {
+  return mesaMembers[level].slots.filter(s => resolveMember(level, s)).length;
+}
+
+function renderMembersPanel(level) {
+  const panel = document.getElementById(`members-panel-${level}`);
+  if (!panel) return;
+  pruneMesaMembers(level);
+
+  const accent = level === 'secundaria' ? 'indigo' : 'emerald';
+  const config = mesaMembers[level];
+  const assignedCount = assignedMembersCount(level);
+  const rows = membersRowsHTML(level);
 
   panel.innerHTML = `
     <details class="border-b border-slate-100 pb-3 mb-3" ${membersPanelOpen[level] ? 'open' : ''}
@@ -247,6 +258,7 @@ function renderMembersPanel(level) {
 function rerenderLevel(level) {
   if (level === 'secundaria') renderSecundaria();
   else renderPrimaria();
+  renderMembersModal();
 }
 
 window.selectMesaMember = function(level, index, value) {
@@ -277,7 +289,10 @@ window.updateManualMember = function(level, index, field, input) {
   }
   saveState();
   clearTimeout(mesaSheetTimers[level]);
-  mesaSheetTimers[level] = setTimeout(() => refreshMesaSheet(level), 250);
+  mesaSheetTimers[level] = setTimeout(() => {
+    refreshMesaSheet(level);
+    refreshMembersModalPreview();
+  }, 250);
 };
 
 window.toggleMesaSheet = function(level, checked) {
@@ -338,7 +353,7 @@ function buildMesaSheet(level) {
   const isSec = level === 'secundaria';
   const sheet = document.createElement('div');
   sheet.id = `mesa-sheet-${level}`;
-  sheet.className = 'sheet-a4 shadow-xl border border-slate-300 p-5 flex flex-col mb-8';
+  sheet.className = 'sheet-a4 mesa-sheet shadow-xl border border-slate-300 p-5 flex flex-col mb-8';
 
   const schoolLogoSrc = logoSchoolImg || PLACEHOLDER_SCHOOL;
   const onpeLogoSrc = logoOnpeImg || PLACEHOLDER_ONPE;
@@ -445,6 +460,96 @@ function refreshMesaSheet(level) {
   if (old) old.replaceWith(sheet);
   else container.appendChild(sheet);
 }
+
+// -------------------------------------------------------------
+// VENTANA "MIEMBROS DE MESA": editar y exportar solo la hoja de mesa
+// -------------------------------------------------------------
+function membersModalOpen() {
+  const modal = document.getElementById('members-modal');
+  return modal && !modal.classList.contains('hidden');
+}
+
+// Fecha local (hora del Perú en la computadora) para el nombre de los PDF: AAAA-MM-DD
+function localDateStamp() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function levelLabel(level) {
+  return level === 'secundaria' ? 'Secundaria' : 'Primaria';
+}
+
+function renderMembersModal() {
+  if (!membersModalOpen()) return;
+  const level = window.currentActiveLevel;
+  pruneMesaMembers(level);
+  document.getElementById('members-modal-level').textContent = levelLabel(level);
+  document.getElementById('members-modal-count').textContent = `${assignedMembersCount(level)} de 6 asignados`;
+  document.getElementById('members-modal-rows').innerHTML = membersRowsHTML(level);
+  refreshMembersModalPreview();
+}
+
+// Vista previa (reducida) de la hoja de mesa dentro de la ventana
+function refreshMembersModalPreview() {
+  if (!membersModalOpen()) return;
+  const level = window.currentActiveLevel;
+  const box = document.getElementById('members-modal-preview');
+  const preview = buildMesaSheet(level);
+  preview.removeAttribute('id');
+  preview.classList.remove('mb-8', 'shadow-xl');
+  box.innerHTML = '';
+  box.appendChild(preview);
+  document.getElementById('members-modal-count').textContent = `${assignedMembersCount(level)} de 6 asignados`;
+}
+
+window.openMembersModal = function() {
+  document.getElementById('members-modal').classList.remove('hidden');
+  renderMembersModal();
+  if (window.lucide && typeof lucide.createIcons === 'function') lucide.createIcons();
+};
+
+window.closeMembersModal = function() {
+  document.getElementById('members-modal').classList.add('hidden');
+  // Sincroniza el panel del nivel con lo editado en la ventana
+  const level = window.currentActiveLevel;
+  if (level === 'secundaria') renderSecundaria();
+  else renderPrimaria();
+};
+
+// Devuelve la hoja de mesa del nivel activo. Si está desactivada en el padrón,
+// se agrega temporalmente y se entrega una función para quitarla al terminar.
+function ensureMesaSheet(level) {
+  let sheet = document.getElementById(`mesa-sheet-${level}`);
+  if (sheet) return { sheet, cleanup: () => {} };
+  sheet = buildMesaSheet(level);
+  document.getElementById(`${level}-sheets-container`).appendChild(sheet);
+  return { sheet, cleanup: () => sheet.remove() };
+}
+
+window.downloadMesaPDF = async function() {
+  const level = window.currentActiveLevel;
+  const { sheet, cleanup } = ensureMesaSheet(level);
+  const fecha = localDateStamp();
+  try {
+    await exportSheetsToPDF([sheet], `Miembros_de_Mesa_${levelLabel(level)}_${fecha}.pdf`, '.btn-mesa-pdf', 'Descargar PDF de esta hoja');
+  } finally {
+    cleanup();
+  }
+};
+
+window.printMesaSheet = function() {
+  const level = window.currentActiveLevel;
+  const { cleanup } = ensureMesaSheet(level);
+  document.body.classList.add('print-mesa-only');
+  const done = () => {
+    document.body.classList.remove('print-mesa-only');
+    cleanup();
+    window.removeEventListener('afterprint', done);
+  };
+  window.addEventListener('afterprint', done);
+  window.print();
+};
 
 // Reduce fotos y logos antes de guardarlos para no llenar el almacenamiento del navegador
 function resizeImageFile(file, maxSize, mime) {
@@ -1188,18 +1293,23 @@ function captureSheet(sheet, scale, baked) {
 }
 
 window.downloadPDF = async function(btn) {
-  if (!window.jspdf || typeof html2canvas !== 'function') {
-    alert('No se pudieron cargar las librerías para generar el PDF. Revisa tu conexión a internet y recarga la página.');
-    return;
-  }
-
   const level = window.currentActiveLevel;
   const container = document.getElementById(level === 'secundaria' ? 'secundaria-sheets-container' : 'primaria-sheets-container');
   const sheets = container ? container.querySelectorAll('.sheet-a4') : [];
-  if (sheets.length === 0) return;
+  const fecha = localDateStamp();
+  await exportSheetsToPDF(sheets, `Padron_Electoral_${levelLabel(level)}_${fecha}.pdf`, '.btn-pdf', 'Descargar PDF');
+};
 
-  // Estado de "cargando" en todos los botones de PDF
-  const buttons = document.querySelectorAll('.btn-pdf');
+// Convierte las hojas indicadas en un PDF A4 (una hoja por página)
+async function exportSheetsToPDF(sheets, filename, buttonSelector, buttonLabel) {
+  if (!window.jspdf || typeof html2canvas !== 'function') {
+    alert('No se pudieron cargar las librerías para generar el PDF. Recarga la página e intenta de nuevo.');
+    return;
+  }
+  if (!sheets || sheets.length === 0) return;
+
+  // Estado de "cargando" en los botones de este PDF
+  const buttons = document.querySelectorAll(buttonSelector);
   buttons.forEach(b => {
     b.disabled = true;
     const label = b.querySelector('.btn-label');
@@ -1228,8 +1338,7 @@ window.downloadPDF = async function(btn) {
       pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pageW, pageH);
     }
 
-    const fecha = new Date().toISOString().slice(0, 10);
-    pdf.save(`Padron_Electoral_${level === 'secundaria' ? 'Secundaria' : 'Primaria'}_${fecha}.pdf`);
+    pdf.save(filename);
   } catch (err) {
     console.error(err);
     alert('Ocurrió un error al generar el PDF: ' + err.message);
@@ -1237,10 +1346,10 @@ window.downloadPDF = async function(btn) {
     buttons.forEach(b => {
       b.disabled = false;
       const label = b.querySelector('.btn-label');
-      if (label) label.textContent = 'Descargar PDF';
+      if (label) label.textContent = buttonLabel;
     });
   }
-};
+}
 
 // -------------------------------------------------------------
 // ACEPTACIÓN DE TÉRMINOS (se pide una vez por navegador)

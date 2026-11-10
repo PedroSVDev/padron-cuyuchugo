@@ -33,6 +33,19 @@
   height: 15mm;
 }
 
+/* Vista previa reducida de la hoja de mesa dentro de la ventana "Miembros de Mesa" */
+.mesa-preview-frame {
+  width: calc(210mm * 0.62);
+  height: calc(297mm * 0.62);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.mesa-preview-scale {
+  width: 210mm;
+  transform: scale(0.62);
+  transform-origin: top left;
+}
+
 /* Términos de uso: hasta aceptarlos solo se ve la pantalla de términos */
 #terms-gate {
   display: none;
@@ -67,6 +80,10 @@ body.terms-pending > :not(#terms-gate) {
   .sheet-a4:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
+  }
+  /* "Imprimir esta hoja" en la ventana Miembros de Mesa: solo sale la hoja de mesa */
+  body.print-mesa-only .sheet-a4:not(.mesa-sheet) {
+    display: none !important;
   }
   .no-print,
   .btn-delete,
